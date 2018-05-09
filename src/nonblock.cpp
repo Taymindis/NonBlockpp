@@ -7,26 +7,13 @@
 #include <cassert>
 #include <csignal>
 #include <unistd.h>
-
-
-namespace __NonBlk {
+#include <atomic>
 
 #ifndef __APPLE__
-typedef void (*extra_handler)(int);
-typedef void (*extra_sigaction)(int, siginfo_t*, void*);
-
-static union sigval val = {0};
-static extra_handler h = 0;
-static extra_sigaction esa = 0;
-static pid_t main_pid = 0;
-
-#define __NONBLK_EVENT_NOTIFY__() sigqueue(main_pid, SIGALRM, val)
-#define __NONBLK_EVENT_SIGNAL__ -8989
-
-#else
-#define __NONBLK_EVENT_NOTIFY__() ualarm(1 /*u seconds*/, 0/*interval*/)
-
+#include <time.h>
 #endif
+
+namespace __NonBlk {
 
 static std::mutex _savedProcessMutex;
 static std::mutex _savedEventMutex;
@@ -34,6 +21,40 @@ static std::mutex _event_mutex;
 static std::deque<UniqEvent> eventQueue;
 static std::deque<UniqEvent> savedProcessQueue;
 static std::deque<UniqEvent> savedEventQueue;
+
+#ifdef __APPLE__
+static std::atomic_flag nextTimerReady = ATOMIC_FLAG_INIT;
+#define __NONBLK_EVENT_NOTIFY__() ({\
+while(nextTimerReady.test_and_set(std::memory_order_acquire));\
+ualarm(1 /*u seconds*/, 0/*interval*/);\
+})
+#else
+
+typedef void (*extra_handler)(int);
+typedef void (*extra_sigaction)(int, siginfo_t*, void*);
+static extra_handler h = 0;
+static extra_sigaction esa = 0;
+static struct sigaction nonblkAct;
+
+#ifdef __ANDROID__
+static std::atomic_flag nextTimerReady = ATOMIC_FLAG_INIT;
+struct sigevent sev;
+static timer_t timerid;
+static struct itimerspec its;
+#define __NONBLK_EVENT_NOTIFY__() ({\
+while(nextTimerReady.test_and_set(std::memory_order_acquire));\
+if(timer_settime(timerid, 0, &its, NULL)!=0)nextTimerReady.clear(std::memory_order_release);\
+})
+#define __NONBLK_EVENT_SIGNAL__ -8989
+#else
+static union sigval val = {0};
+static pid_t main_pid = 0;
+#define __NONBLK_EVENT_NOTIFY__() sigqueue(main_pid, SIGALRM, val)
+#define __NONBLK_EVENT_SIGNAL__ -8989
+#endif
+
+#endif
+
 
 /** Only strictly one at a time due to main thread is only 1 **/
 void mainThreadEventTrigger(int unused) {
@@ -43,6 +64,7 @@ void mainThreadEventTrigger(int unused) {
         eventQueue.pop_front();
         event->_dispatch();
     }
+    nextTimerReady.clear(std::memory_order_release);
 }
 
 void dispatchMainThreadEvents(UniqEvent &&ev) {
@@ -77,6 +99,7 @@ NonBlk::EventId pushEventToMainThread(UniqEvent &&ev) {
     savedEventQueue.push_back(std::move(ev));
     return (NonBlk::EventId)&savedEventQueue.back();
 }
+
 #ifndef __APPLE__
 void eventHandler2(int sig, siginfo_t *info, void *ctx) {
     if (info->si_int == __NONBLK_EVENT_SIGNAL__) {
@@ -100,26 +123,24 @@ void eventHandler3(int sig, siginfo_t *info, void *ctx) {
 bool chainEventSignals(extra_handler x) {
     if (x) { // Means not first registered
         h = x;
-        struct sigaction act;
-        act.sa_sigaction = eventHandler2;
-        sigemptyset(&act.sa_mask);
-        act.sa_flags = SA_SIGINFO;
-        if (sigaction(SIGALRM, &act, NULL) < 0)
-            return false;
     }
+    nonblkAct.sa_sigaction = eventHandler2;
+    sigemptyset(&nonblkAct.sa_mask);
+    nonblkAct.sa_flags = SA_SIGINFO;
+    if (sigaction(SIGALRM, &nonblkAct, NULL) < 0)
+        return false;
     return true;
 }
 
 bool chainEventSignals(extra_sigaction x) {
     if (x) { // Means not first registered
         esa = x;
-        struct sigaction act;
-        act.sa_sigaction = eventHandler3;
-        sigemptyset(&act.sa_mask);
-        act.sa_flags = SA_SIGINFO;
-        if (sigaction(SIGALRM, &act, NULL) < 0)
-            return false;
     }
+    nonblkAct.sa_sigaction = eventHandler3;
+    sigemptyset(&nonblkAct.sa_mask);
+    nonblkAct.sa_flags = SA_SIGINFO;
+    if (sigaction(SIGALRM, &nonblkAct, NULL) < 0)
+        return false;
     return true;
 }
 
@@ -128,13 +149,27 @@ bool chainEventSignals(extra_sigaction x) {
 
 namespace NonBlk {
 void enableMainThreadEvent() {
-#ifndef __APPLE__
+#ifdef __APPLE__
+    assert( (!signal(SIGALRM, __NonBlk::mainThreadEventTrigger)) && " NonBlock:: Sigalarm event had been registered by");
+#else
+
+#ifdef __ANDROID__
+    __NonBlk::sev.sigev_notify = SIGEV_SIGNAL;
+    __NonBlk::sev.sigev_signo = SIGALRM;
+    __NonBlk::sev.sigev_value.sival_int = __NONBLK_EVENT_SIGNAL__;
+
+    // Create the timer
+    timer_create(CLOCK_REALTIME, &__NonBlk::sev, &__NonBlk::timerid);
+    __NonBlk::its.it_value.tv_sec = 0;
+    __NonBlk::its.it_value.tv_nsec = 1;
+    // __NonBlk::its.it_interval.tv_sec = __NonBlk::its.it_value.tv_sec;
+    // __NonBlk::its.it_interval.tv_nsec = __NonBlk::its.it_value.tv_nsec;
+#else
     __NonBlk::main_pid = getpid();
     __NonBlk::val.sival_int = __NONBLK_EVENT_SIGNAL__;
+#endif
     assert( __NonBlk::chainEventSignals(signal(SIGALRM, __NonBlk::mainThreadEventTrigger)) &&
             " Unable to chain the events, please contact support for more information");
-#else
-    assert( (!signal(SIGALRM, __NonBlk::mainThreadEventTrigger)) && " NonBlock:: Sigalarm event had been registered by");
 #endif
 }
 

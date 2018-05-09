@@ -4,49 +4,56 @@
 #include <fstream>
 #include <chrono>
 #include <vector>
+#include <atomic>
 #include "nonblock.h"
 
 
 TEST(unblockppTest, TEST_RUN_ON_MAIN_THREAD_FROM_REF_OBJ)
 {
-    std::thread::id threadId;
-    NonBlk::run([](std::thread::id & id) {
-        NonBlk::runOnMainThread([](std::thread::id & id) {
-            id = std::this_thread::get_id();
+    std::thread::id threadId =  std::this_thread::get_id();
+    std::atomic<int> done = {0};
+    NonBlk::run([&](std::thread::id & id) {
+        NonBlk::runOnMainThread([&](std::thread::id & id) {
+            EXPECT_TRUE( std::this_thread::get_id() == id ) << " It is not main thread!! " << id << " == " << std::this_thread::get_id() << "\n";
+            done++;
         }, std::ref(id));
     }, std::ref(threadId));
-    std::this_thread::sleep_for (std::chrono::milliseconds(1000));
-    EXPECT_TRUE( std::this_thread::get_id() == threadId ) << " It is not main thread!! " << threadId << " == " << std::this_thread::get_id() << "\n";
+    while (!done);
 }
 
 TEST(unblockppTest, TEST_RUN_ON_MAIN_THREAD)
 {
     std::thread::id threadId =  std::this_thread::get_id();
-
-    NonBlk::run([threadId]() {
-        NonBlk::runOnMainThread([threadId]() {
+    std::atomic<int> done = {0};
+    NonBlk::run([&]() {
+        NonBlk::runOnMainThread([&]() {
             EXPECT_TRUE( std::this_thread::get_id() == threadId ) << " It is not main thread!! " << threadId << " == " << std::this_thread::get_id() << "\n";
+            done++;
         });
     });
-    std::this_thread::sleep_for (std::chrono::milliseconds(1000));
+    while (!done);
 }
 
 TEST(unblockppTest, CROSS_THREAD_MAIN_CALL)
 {
     std::thread::id threadId =  std::this_thread::get_id();
-    NonBlk::EventId ev;
+    std::atomic<int> done = {0};
+    NonBlk::EventId ev = 0;
+    std::atomic<bool> hasEvent = {false};
     NonBlk::run([&]() {
-       ev = NonBlk::pushEventToMainThread([&]() {
+        ev = NonBlk::pushEventToMainThread([&]() {
             EXPECT_TRUE( std::this_thread::get_id() == threadId ) << " It is not main thread!! " << threadId << " == " << std::this_thread::get_id() << "\n";
+            done = 1;
         });
+
+        hasEvent = true;
     });
 
-    std::thread([&](){
-        std::chrono::milliseconds(500);
+    std::thread([&]() {
+        while(!hasEvent);
         NonBlk::runEventOnMainThread(ev);
     }).detach();
-
-    std::this_thread::sleep_for (std::chrono::milliseconds(1500));
+    while (!done);
 }
 
 int main(int argc, char **argv) {
