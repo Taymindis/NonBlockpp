@@ -7,13 +7,10 @@ Table of Contents
 =================
 
 * [Usage](#usage)
-* [What can I use for ?](#what-can-i-use-for-?)
+* [What can I use for ?](#what-can-i-use-for-)
 * [How it works](#how-it-works)
 * [Installation](#installation)
-* [Sample Application Development](#sample-application-development)
-* [Test](#test)
 * [Support](#support)
-* [Copyright & License](#copyright--license)
 
 
 Usage
@@ -101,14 +98,23 @@ Installation
 ============
 
 > cd to nonblockpp project root path
+
 > mkdir build
+
 > cd build/
+
 > cmake ..
+
 > make
+
 > ./unit_tests 
+
 > make install
+
 or
+
 > sudo make install
+
 
 Support
 =======
