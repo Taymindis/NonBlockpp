@@ -16,6 +16,13 @@ Table of Contents
 Usage
 =====
 
+### First, enable the Main Thread Call back link event in your main thread.
+```cpp
+
+NonBlk::enableMainThreadEvent();
+
+```
+
 ### Run task as background immediately
 ```cpp
 int partialUpdate=0;
