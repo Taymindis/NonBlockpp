@@ -122,6 +122,15 @@ or
 
 > sudo make install
 
+## Android Build
+```
+cd to nonblock-android
+./build.sh
+
+```
+
+and copy the library to your project.
+
 
 Support
 =======
