@@ -90,17 +90,6 @@ What can I use for ?
 - For creating multiple service hooker in one process worker, such as websocket, tcp listener, udp listener and etc.
 
 
-How it works
-============
-
-![Image1 of nonblockpp](img1.png)
-
-![Image2 of nonblockpp](img2.png)
-
-![Image3 of nonblockpp](img3.png)
-
-
-
 Installation
 ============
 ```console
