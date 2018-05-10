@@ -18,7 +18,10 @@ TEST(unblockppTest, TEST_RUN_ON_MAIN_THREAD_FROM_REF_OBJ)
             done++;
         }, std::ref(id));
     }, std::ref(threadId));
-    while (!done);
+
+    while (!done) {
+        NonBlk::pollEvent();
+    }
 }
 
 TEST(unblockppTest, TEST_RUN_ON_MAIN_THREAD)
@@ -31,7 +34,10 @@ TEST(unblockppTest, TEST_RUN_ON_MAIN_THREAD)
             done++;
         });
     });
-    while (!done);
+    
+    while (!done) {
+        NonBlk::pollEvent();
+    }
 }
 
 TEST(unblockppTest, CROSS_THREAD_MAIN_CALL)
@@ -50,14 +56,15 @@ TEST(unblockppTest, CROSS_THREAD_MAIN_CALL)
     });
 
     std::thread([&]() {
-        while(!hasEvent);
+        while (!hasEvent);
         NonBlk::runEventOnMainThread(ev);
     }).detach();
-    while (!done);
+    while (!done) {
+        NonBlk::pollEvent();
+    }
 }
 
 int main(int argc, char **argv) {
-    NonBlk::enableMainThreadEvent();
 
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

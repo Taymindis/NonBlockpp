@@ -87,16 +87,7 @@ add_library(${PROJ} SHARED ${HDRS} ${SRCS})
 
 link_directories(/usr/local/lib /usr/lib)
 
-find_library(RT_LIB NAMES rt PATHS ${LIBPATH})
-if(RT_LIB)  
-  message( STATUS "rt found.")
-  target_link_libraries(${PROJ} pthread rt)
-else(RT_LIB)
-  target_link_libraries(${PROJ} pthread)
-  message( STATUS "No timer")
-endif(RT_LIB)
-
-
+target_link_libraries(${PROJ} pthread)
 
 
 ###############################################################################

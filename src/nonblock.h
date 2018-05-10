@@ -45,7 +45,7 @@ namespace NonBlk {
 
 using EventId = uintptr_t;
 
-void enableMainThreadEvent();
+void pollEvent();
 
 void runAllTask();
 void removeAllTask();

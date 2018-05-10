@@ -16,10 +16,10 @@ Table of Contents
 Usage
 =====
 
-### First, enable the Main Thread Call back link event in your main thread.
+### First, put the pollEvent within your main thread looping scope
 ```cpp
 
-NonBlk::enableMainThreadEvent();
+NonBlk::pollEvent();
 
 ```
 
