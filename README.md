@@ -8,7 +8,6 @@ Table of Contents
 
 * [Usage](#usage)
 * [What can I use for ?](#what-can-i-use-for-)
-* [How it works](#how-it-works)
 * [Installation](#installation)
 * [Support](#support)
 
