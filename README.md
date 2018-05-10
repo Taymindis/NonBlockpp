@@ -103,27 +103,23 @@ How it works
 
 Installation
 ============
-
-> cd to nonblockpp project root path
-
-> mkdir build
-
-> cd build/
-
-> cmake ..
-
-> make
-
-> ./unit_tests 
-
-> make install
+```console
+cd to nonblockpp project root path
+mkdir build
+cd build/
+cmake ..
+make
+./unit_tests 
+make install
+```
 
 or
-
-> sudo make install
+```console
+sudo make install
+```
 
 ## Android Build
-```
+```console
 cd to nonblock-android
 ./build.sh
 
