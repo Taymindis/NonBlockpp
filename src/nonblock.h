@@ -59,17 +59,11 @@ void runEventOnMainThread(EventId);
 template <typename Process>
 void run(Process process);
 
-template <typename Process, typename T>
-void run(Process process, T t);
-
 template <typename Process, typename... Ts>
 void run(Process process, Ts... ts);
 
 template <typename Then>
 void runOnMainThread(Then then);
-
-template <typename Then, typename T>
-void runOnMainThread(Then then, T t);
 
 template <typename Then, typename... Ts>
 void runOnMainThread(Then then, Ts... ts);
@@ -78,17 +72,11 @@ void runOnMainThread(Then then, Ts... ts);
 template <typename Process>
 EventId pushTask(Process process);
 
-template <typename Process, typename T>
-EventId pushTask(Process process, T t);
-
 template <typename Process, typename... Ts>
 EventId pushTask(Process process, Ts... ts);
 
 template <typename Then>
 EventId pushEventToMainThread(Then then);
-
-template <typename Then, typename T>
-EventId pushEventToMainThread(Then then, T t);
 
 template <typename Then, typename... Ts>
 EventId pushEventToMainThread(Then then, Ts... ts);
@@ -144,23 +132,12 @@ private:
     u_char* _call;
 };
 
-template <typename Call, typename T>
+template <typename Call, typename... Ts>
 class BusVar: public Event {
 public:
-    explicit BusVar(Call &&call, T &&t);
+    explicit BusVar(Call &&call, Ts&&... ts);
     void _dispatch() override;
     ~BusVar();
-private:
-    u_char* _call;
-    T _t;
-};
-
-template <typename Call, typename... Ts>
-class BusVars: public Event {
-public:
-    explicit BusVars(Call &&call, Ts&&... ts);
-    void _dispatch() override;
-    ~BusVars();
 private:
     u_char* _call;
     std::tuple<Ts...> _ts;
@@ -183,38 +160,21 @@ Bus<Call>::~Bus() {
     free(this->_call);
 }
 
-template <typename Call, typename T>
-BusVar<Call, T>::BusVar(Call &&call, T &&t): _t(t) {
-    this->_call = (u_char*) malloc(sizeof(Call));
-    std::memcpy(this->_call, (u_char*) &call, sizeof(Call));
-}
-
-template <typename Call, typename T>
-void BusVar<Call, T>::_dispatch() {
-    Call *call = (Call*) this->_call;
-    (*call)(_t);
-}
-
-template <typename Call, typename T>
-BusVar<Call, T>::~BusVar() {
-    free(this->_call);
-}
-
 template <typename Call, typename... Ts>
-BusVars<Call, Ts...>::BusVars(Call &&call, Ts&&... ts) : _ts(std::make_tuple(ts...)) {
+BusVar<Call, Ts...>::BusVar(Call &&call, Ts&&... ts) : _ts(std::make_tuple(ts...)) {
     this->_call = (u_char*) malloc(sizeof(Call));
     std::memcpy(this->_call, (u_char*) &call, sizeof(Call));
 }
 
 template <typename Call, typename... Ts>
-void BusVars<Call, Ts...>::_dispatch() {
+void BusVar<Call, Ts...>::_dispatch() {
     Call *call = (Call*) this->_call;
     apply(std::move(*call), std::move(this->_ts));
 
 }
 
 template <typename Call, typename... Ts>
-BusVars<Call, Ts...>::~BusVars() {
+BusVar<Call, Ts...>::~BusVar() {
     free(this->_call);
 }
 
@@ -234,13 +194,6 @@ void run(Process process) {
     }, std::move(process)).detach();
 }
 
-template <typename Process, typename T>
-void run(Process process, T t) {
-    std::thread([](Process && process, T && t) {
-        process(t);
-    }, std::move(process), std::move(t)).detach();
-}
-
 template <typename Process, typename... Ts>
 void run(Process process, Ts... ts) {
     std::thread([](Process && process, Ts && ...ts) {
@@ -254,15 +207,9 @@ void runOnMainThread(Then then) {
     __NonBlk::dispatchMainThreadEvents(std::move(event));
 }
 
-template <typename Then, typename T>
-void runOnMainThread(Then then, T t) {
-    __NonBlk::UniqEvent event(new __NonBlk::BusVar<Then, T>(std::move(then), std::move(t)));
-    __NonBlk::dispatchMainThreadEvents(std::move(event));
-}
-
 template <typename Then, typename... Ts>
 void runOnMainThread(Then then, Ts... ts) {
-    __NonBlk::UniqEvent event(new __NonBlk::BusVars<Then, Ts...>(std::move(then), std::move(ts)...));
+    __NonBlk::UniqEvent event(new __NonBlk::BusVar<Then, Ts...>(std::move(then), std::move(ts)...));
     __NonBlk::dispatchMainThreadEvents(std::move(event));
 }
 
@@ -272,15 +219,9 @@ EventId pushTask(Process process) {
     return __NonBlk::pushTask(std::move(event));
 }
 
-template <typename Process, typename T>
-EventId pushTask(Process process, T t) {
-    __NonBlk::UniqEvent event(new __NonBlk::BusVar<Process, T>(std::move(process), std::move(t)));
-    return __NonBlk::pushTask(std::move(event));
-}
-
 template <typename Process, typename... Ts>
 EventId pushTask(Process process, Ts... ts) {
-    __NonBlk::UniqEvent event(new __NonBlk::BusVars<Process, Ts...>(std::move(process), std::move(ts)...));
+    __NonBlk::UniqEvent event(new __NonBlk::BusVar<Process, Ts...>(std::move(process), std::move(ts)...));
     return __NonBlk::pushTask(std::move(event));
 }
 
@@ -290,15 +231,9 @@ EventId pushEventToMainThread(Then then) {
     return __NonBlk::pushEventToMainThread(std::move(event));
 }
 
-template <typename Then, typename T>
-EventId pushEventToMainThread(Then then, T t) {
-    __NonBlk::UniqEvent event(new __NonBlk::BusVar<Then, T>(std::move(then), std::move(t)));
-    return __NonBlk::pushEventToMainThread(std::move(event));
-}
-
 template <typename Then, typename... Ts>
 EventId pushEventToMainThread(Then then, Ts... ts) {
-    __NonBlk::UniqEvent event(new __NonBlk::BusVars<Then, Ts...>(std::move(then), std::move(ts)...));
+    __NonBlk::UniqEvent event(new __NonBlk::BusVar<Then, Ts...>(std::move(then), std::move(ts)...));
     return __NonBlk::pushEventToMainThread(std::move(event));
 }
 /*************** End PRIVATE scope ********************************/
