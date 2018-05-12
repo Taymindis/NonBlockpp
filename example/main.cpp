@@ -9,64 +9,35 @@
 #include <nonblockpp/nonblock.h>
 #include <atomic>
 
-std::thread::id mainThreadId;
-
-#define FIRST_STAGE_UPDATE 200
-#define SEC_STAGE_UPDATE 501
-#define LAST_STAGE_UPDATE 800
-
-
 /** command
   g++ -std=c++11 main.cpp -lnonblockpp
 **/
 
 int main() {
-    std::atomic<int> partialUpdate = {0};
 
-    mainThreadId = std::this_thread::get_id();
-    bool done = false;
+    std::thread::id mainThreadId = std::this_thread::get_id();
+    bool done = false;;
 
-    NonBlk::run([&](std::atomic<int> &updating) {
-        while (++updating != FIRST_STAGE_UPDATE) {
-            std::cout << "\r" << "Downloading some stuff " << partialUpdate << " frame update with timestamp " << std::time(0) << std::flush;
-
-            std::this_thread::sleep_for (std::chrono::milliseconds(16));
-        }
-        NonBlk::runOnMainThread([&]() {
-            std::cout << "Success call with same thread id " << mainThreadId << " ==  " << std::this_thread::get_id() << "\n";
-            assert(mainThreadId == std::this_thread::get_id() && " Thread Not the same??");
-
+    NonBlk::run([](std::thread::id && id, bool &done) {
+        NonBlk::runOnMainThread([](std::thread::id && id, bool &done) {
+            std::cout << "Success call with same thread id " << id << " ==  " << std::this_thread::get_id() << "\n";
+            assert(id == std::this_thread::get_id() && " Thread Not the same??");
             //  Doing another heavy staff  thread without blocking
-            NonBlk::run([&]() {
-                if (partialUpdate == FIRST_STAGE_UPDATE) {
-                    NonBlk::EventId dispatchMainThreadEv = 0;
-                    NonBlk::EventId taskEv = NonBlk::pushTask([&]() {
-                        std::cout << " Do background task " << "\n";
-                        dispatchMainThreadEv = NonBlk::pushEventToMainThread([&]() {
-                            partialUpdate = LAST_STAGE_UPDATE;
-                            assert(mainThreadId == std::this_thread::get_id() && " Thread Not the same??");
-                        });
+            NonBlk::run([](std::thread::id && id, bool &done) {
+                NonBlk::EventId taskEv = NonBlk::pushTask([](std::thread::id && id, bool &done) {
+                    std::cout << " Do background task " << "\n";
+                    NonBlk::EventId dispatchMainThreadEv = NonBlk::pushEventToMainThread([](std::thread::id && id, bool &done) {
+                        assert(id == std::this_thread::get_id() && " Thread Not the same??");
+                        done = true;
+                    }, std::move(id), std::ref(done));
+                    NonBlk::runEventOnMainThread(dispatchMainThreadEv);
+                }, std::move(id), std::ref(done));
+                std::cout << " Triggering background task  " << "\n";
+                NonBlk::runTask(taskEv);
+            }, std::move(id), std::ref(done));
 
-                        while (++partialUpdate != SEC_STAGE_UPDATE)
-                            std::this_thread::sleep_for (std::chrono::milliseconds(16));
-
-                        NonBlk::runEventOnMainThread(dispatchMainThreadEv);
-
-                    });
-
-                    std::cout << " Triggering background task  " << "\n";
-                    NonBlk::runTask(taskEv);
-                }
-
-                while (partialUpdate != LAST_STAGE_UPDATE) {
-                    std::cout << "\r" << " Downloading extra stuff again " << partialUpdate << " frame update with timestamp " << std::time(0) << std::flush;
-                    std::this_thread::sleep_for (std::chrono::milliseconds(16));
-                }
-
-                done = true;
-            });
-        });
-    }, std::ref(partialUpdate));
+        }, std::move(id), std::ref(done));
+    }, std::move(mainThreadId), std::ref(done));
 
 
     while (!done) {

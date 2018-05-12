@@ -8,33 +8,35 @@
 #include "nonblock.h"
 
 
-TEST(unblockppTest, TEST_RUN_ON_MAIN_THREAD_FROM_REF_OBJ)
+TEST(unblockppTest, TEST_RUN_ON_MAIN_THREAD_1)
 {
     std::thread::id threadId =  std::this_thread::get_id();
     std::atomic<int> done = {0};
-    NonBlk::run([&](std::thread::id & id) {
-        NonBlk::runOnMainThread([&](std::thread::id & id) {
-            EXPECT_TRUE( std::this_thread::get_id() == id ) << " It is not main thread!! " << id << " == " << std::this_thread::get_id() << "\n";
+    NonBlk::run([&](std::thread::id && id) {
+        NonBlk::runOnMainThread([&](std::thread::id && _id) {
+            EXPECT_TRUE( std::this_thread::get_id() == _id ) << " It is not main thread!! " << _id << " == " << std::this_thread::get_id() << "\n";
             done++;
-        }, std::ref(id));
-    }, std::ref(threadId));
+        }, std::move(id));
+    }, std::move(threadId));
 
     while (!done) {
         NonBlk::pollEvent();
     }
 }
 
-TEST(unblockppTest, TEST_RUN_ON_MAIN_THREAD)
+TEST(unblockppTest, TEST_RUN_ON_MAIN_THREAD_2)
 {
     std::thread::id threadId =  std::this_thread::get_id();
     std::atomic<int> done = {0};
-    NonBlk::run([&]() {
-        NonBlk::runOnMainThread([&]() {
-            EXPECT_TRUE( std::this_thread::get_id() == threadId ) << " It is not main thread!! " << threadId << " == " << std::this_thread::get_id() << "\n";
+    NonBlk::EventId ev = NonBlk::pushTask([&](std::thread::id && id) {
+        NonBlk::runOnMainThread([&](std::thread::id && _id) {
+            EXPECT_TRUE( std::this_thread::get_id() == _id ) << " It is not main thread!! " << _id << " == " << std::this_thread::get_id() << "\n";
             done++;
-        });
-    });
-    
+        }, std::move(id));
+    }, std::move(threadId));
+
+    NonBlk::runTask(ev);
+
     while (!done) {
         NonBlk::pollEvent();
     }

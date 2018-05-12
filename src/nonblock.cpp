@@ -109,7 +109,7 @@ void runTask(EventId evId) {
     size_t qSize = __NonBlk::savedProcessQueue.size();
     for (uint i = 0; i < qSize; i++) {
         if (evId == (EventId) & (__NonBlk::savedProcessQueue[i]) ) {
-            std::thread([i](__NonBlk::UniqEvent && ev) {
+            std::thread([](__NonBlk::UniqEvent && ev) {
                 ev->_dispatch();
             }, std::move(__NonBlk::savedProcessQueue[i])).detach();
             __NonBlk::savedProcessQueue.erase (__NonBlk::savedProcessQueue.begin() + i);
